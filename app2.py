@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from model import train_and_evaluate, save_model, load_model, predict_df
+from model2 import train_and_evaluate, save_model, load_model, predict_df
 from generate_sample_data import generate
 import plotly.express as px
 import os
