@@ -1,2 +1,3 @@
-# AI-BASED-DROUPOUT-PREDICTION-AND-COUNCELING-SYSTEM                                                                                                                                              -GEN Z CODERS 
+# 𝙂𝙪𝙖𝙧𝙙𝙞𝙖𝙣𝘼𝙄 – ᴡᴀᴛᴄʜ. ᴅᴇᴛᴇᴄᴛ. ᴘʀᴏᴛᴇᴄᴛ   
+Zero Dropouts, Infinite Potential
                            
