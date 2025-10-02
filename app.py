@@ -11,9 +11,9 @@ import smtplib
 from email.message import EmailMessage
 
 load_dotenv()
-st.set_page_config(page_title="Dropout Prediction & Counseling", layout="wide")
+st.set_page_config(page_title="𝙂𝙪𝙖𝙧𝙙𝙞𝙖𝙣𝘼𝙄", layout="wide")
 
-st.title("AI-Based Dropout Prediction & Counseling — Prototype")
+st.title("𝙂𝙪𝙖𝙧𝙙𝙞𝙖𝙣𝘼𝙄 – ᴡᴀᴛᴄʜ. ᴅᴇᴛᴇᴄᴛ. ᴘʀᴏᴛᴇᴄᴛ")
 
 # Sidebar controls
 st.sidebar.header("Data / Model")
