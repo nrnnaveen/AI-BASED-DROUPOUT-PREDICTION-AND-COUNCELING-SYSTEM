@@ -251,8 +251,27 @@ if model is not None:
             st.info("Email sending disabled by default. Tick the box to enable.")
 
 # ---------------- Footer ----------------
-st.markdown("""
-<div style='text-align:center; padding:10px; font-size:14px; background: linear-gradient(to right, #f8f9fa, #e9ecef);'>
-© 2025 GuardianAI | Developed by <b>GEN Z CODERS</b> | 💌 Contact: ffnrnindian@gmail.com
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    """
+    <style>
+    .footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: #f5f5f5;
+        color: #555;
+        text-align: center;
+        padding: 10px;
+        font-size: 14px;
+        border-top: 1px solid #ddd;
+    }
+    </style>
+    <div class="footer">
+      © 2025 GuardianAI | Developed by <b>GEN Z CODERS</b> | 💌 Contact: ffnrnindian@gmail.com
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+st.write("---")
