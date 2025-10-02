@@ -153,7 +153,10 @@ if model is not None:
     st.download_button("📥 Download High-risk CSV", high_risk.to_csv(index=False), file_name="high_risk_students.csv", mime="text/csv")
     st.download_button("📥 Download ALL Predictions", pred_df.to_csv(index=False), file_name="all_predictions.csv", mime="text/csv")
 
-  # ---------------- Counseling Email Section ----------------
+# ---------------- Initialize high_risk ----------------
+high_risk = pd.DataFrame()  # avoid NameError if predictions haven't run yet
+
+# ---------------- Counseling Email Section ----------------
 st.write("## Counseling / Outreach")
 st.write("Compose a counseling email message and send to a list. (Prototype only)")
 
@@ -195,12 +198,12 @@ with st.expander("Compose email"):
 
     if enable_email and st.button("Send emails (demo)"):
         if high_risk.empty:
-            st.info("No high-risk students to send to.")
+            st.info("No high-risk students to send to. Run predictions first.")
         else:
             sent, failed = 0, []
             for _, row in high_risk.iterrows():
-                student_id = row["student_id"]
-                # SEND ALL EMAILS TO YOUR EMAIL FOR TESTING
+                student_id = row.get("student_id", "Unknown")
+                # Send all emails to your address for safe testing
                 to_email = "ffnrnindian@gmail.com"
                 body = body_template.format(
                     student_id=student_id,
@@ -217,6 +220,7 @@ with st.expander("Compose email"):
                 st.write("Failed to send to:", failed[:10])
     elif not enable_email:
         st.info("Email sending disabled by default. Tick the box to enable.")
+
 
 
 # ---------------- Footer ----------------
