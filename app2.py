@@ -162,6 +162,10 @@ st.write("Compose a counseling email message and send to a list. (Prototype only
 
 with st.expander("Compose email"):
     enable_email = st.checkbox("Enable Email Sending (use with caution)", value=False)
+    use_real_emails = st.checkbox(
+        "Send to actual student emails (requires 'email' column in dataset)", value=False
+    )
+    
     subject = st.text_input("Subject", "Counseling: Support available to help your academic progress")
     body_template = st.text_area(
         "Body template",
@@ -203,23 +207,31 @@ with st.expander("Compose email"):
             sent, failed = 0, []
             for _, row in high_risk.iterrows():
                 student_id = row.get("student_id", "Unknown")
-                # Send all emails to your address for safe testing
-                to_email = "ffnrnindian@gmail.com"
+                # Decide recipient
+                if use_real_emails and "email" in row:
+                    to_email = row["email"]
+                else:
+                    # Default safe test email
+                    to_email = "ffnrnindian@gmail.com"
+
                 body = body_template.format(
                     student_id=student_id,
                     attendance_pct=row.get("attendance_pct", "N/A"),
                     avg_test_pct=row.get("avg_test_pct", "N/A"),
                     risk_proba=round(row.get("risk_proba", 0), 3)
                 )
+
                 if send_email(to_email, subject, body):
                     sent += 1
                 else:
                     failed.append(to_email)
+
             st.success(f"✅ Sent {sent} emails. Failures: {len(failed)}")
             if failed:
                 st.write("Failed to send to:", failed[:10])
     elif not enable_email:
         st.info("Email sending disabled by default. Tick the box to enable.")
+
 
 
 
