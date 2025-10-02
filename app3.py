@@ -232,7 +232,7 @@ if model is not None:
                         # Default safe test email
                         to_email = "ffnrnindian@gmail.com"
 
-        body = body_template.format(
+                    body = body_template.format(
                         student_id=student_id,
                         attendance_pct=row.get("attendance_pct", "N/A"),
                         avg_test_pct=row.get("avg_test_pct", "N/A"),
