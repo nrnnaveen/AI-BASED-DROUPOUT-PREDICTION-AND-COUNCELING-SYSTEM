@@ -218,7 +218,7 @@ st.markdown(
     }
     </style>
     <div class="footer">
-        © 2025 GuardianAI | Developed by <b>GEN Z CODER MU</b>
+        © 2025 GuardianAI | Developed by <b>GEN Z CODERS</b>
     </div>
     """,
     unsafe_allow_html=True
