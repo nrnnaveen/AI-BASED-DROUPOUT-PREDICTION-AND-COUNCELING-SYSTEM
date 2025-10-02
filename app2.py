@@ -153,59 +153,71 @@ if model is not None:
     st.download_button("📥 Download High-risk CSV", high_risk.to_csv(index=False), file_name="high_risk_students.csv", mime="text/csv")
     st.download_button("📥 Download ALL Predictions", pred_df.to_csv(index=False), file_name="all_predictions.csv", mime="text/csv")
 
-    # ---------------- Counseling Email Section ----------------
-    st.write("## Counseling / Outreach")
-    st.write("Compose a counseling email message and send to a list. (Prototype only)")
+  # ---------------- Counseling Email Section ----------------
+st.write("## Counseling / Outreach")
+st.write("Compose a counseling email message and send to a list. (Prototype only)")
 
-    with st.expander("Compose email"):
-        enable_email = st.checkbox("Enable Email Sending (use with caution)", value=False)
-        subject = st.text_input("Subject", "Counseling: Support available to help your academic progress")
-        body_template = st.text_area(
-            "Body template",
-            "Dear Student {student_id},\n\nWe noticed your attendance is {attendance_pct}% "
-            "and recent test average is {avg_test_pct}%. We are concerned and want to offer support.\n\nRegards,\nCounseling Team"
-        )
+with st.expander("Compose email"):
+    enable_email = st.checkbox("Enable Email Sending (use with caution)", value=False)
+    subject = st.text_input("Subject", "Counseling: Support available to help your academic progress")
+    body_template = st.text_area(
+        "Body template",
+        "Dear Student {student_id},\n\nWe noticed your attendance is {attendance_pct}% "
+        "and recent test average is {avg_test_pct}%. We are concerned and want to offer support.\n\nRegards,\nCounseling Team"
+    )
 
-        def send_email(to_email, subject, body):
+    def send_email(to_email, subject, body):
+        try:
             host = os.getenv("EMAIL_HOST")
             port = int(os.getenv("EMAIL_PORT", "587"))
             user = os.getenv("EMAIL_USER")
             password = os.getenv("EMAIL_PASSWORD")
             from_addr = os.getenv("FROM_ADDRESS", user)
+
+            if not all([host, port, user, password]):
+                st.error("SMTP credentials are missing! Check your .env file.")
+                return False
+
             msg = EmailMessage()
             msg["Subject"] = subject
             msg["From"] = from_addr
             msg["To"] = to_email
             msg.set_content(body)
+
             with smtplib.SMTP(host, port) as s:
                 s.starttls()
                 s.login(user, password)
                 s.send_message(msg)
+            return True
+        except Exception as e:
+            st.error(f"Failed to send email to {to_email}: {e}")
+            return False
 
-        if enable_email and st.button("Send emails (demo)"):
-            if high_risk.empty:
-                st.info("No high-risk students to send to.")
-            else:
-                sent, failed = 0, []
-                for _, row in high_risk.iterrows():
-                    student_id = row["student_id"]
-                    to_email = f"{student_id}@example.edu"  # demo emails
-                    body = body_template.format(
-                        student_id=student_id,
-                        attendance_pct=row["attendance_pct"],
-                        avg_test_pct=row["avg_test_pct"],
-                        risk_proba=round(row["risk_proba"], 3)
-                    )
-                    try:
-                        send_email(to_email, subject, body)
-                        sent += 1
-                    except Exception as e:
-                        failed.append((to_email, str(e)))
-                st.success(f"✅ Sent {sent} emails. Failures: {len(failed)}")
-                if failed:
-                    st.write(failed[:10])
-        elif not enable_email:
-            st.info("Email sending disabled by default. Tick the box to enable.")
+    if enable_email and st.button("Send emails (demo)"):
+        if high_risk.empty:
+            st.info("No high-risk students to send to.")
+        else:
+            sent, failed = 0, []
+            for _, row in high_risk.iterrows():
+                student_id = row["student_id"]
+                # SEND ALL EMAILS TO YOUR EMAIL FOR TESTING
+                to_email = "ffnrnindian@gmail.com"
+                body = body_template.format(
+                    student_id=student_id,
+                    attendance_pct=row.get("attendance_pct", "N/A"),
+                    avg_test_pct=row.get("avg_test_pct", "N/A"),
+                    risk_proba=round(row.get("risk_proba", 0), 3)
+                )
+                if send_email(to_email, subject, body):
+                    sent += 1
+                else:
+                    failed.append(to_email)
+            st.success(f"✅ Sent {sent} emails. Failures: {len(failed)}")
+            if failed:
+                st.write("Failed to send to:", failed[:10])
+    elif not enable_email:
+        st.info("Email sending disabled by default. Tick the box to enable.")
+
 
 # ---------------- Footer ----------------
 st.markdown(
