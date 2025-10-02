@@ -14,6 +14,7 @@ load_dotenv()
 st.set_page_config(page_title="𝙂𝙪𝙖𝙧𝙙𝙞𝙖𝙣𝘼𝙄", layout="wide")
 
 st.title("𝙂𝙪𝙖𝙧𝙙𝙞𝙖𝙣𝘼𝙄 – ᴡᴀᴛᴄʜ. ᴅᴇᴛᴇᴄᴛ. ᴘʀᴏᴛᴇᴄᴛ")
+st.subheader("Zero Dropouts, Infinite Potential")
 
 # Sidebar controls
 st.sidebar.header("Data / Model")
