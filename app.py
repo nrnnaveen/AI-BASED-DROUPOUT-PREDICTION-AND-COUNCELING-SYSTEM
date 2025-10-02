@@ -201,4 +201,28 @@ if model is not None:
                     if failed:
                         st.write(failed[:10])
 
+st.markdown(
+    """
+    <style>
+    .footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: #f5f5f5;
+        color: #555;
+        text-align: center;
+        padding: 10px;
+        font-size: 14px;
+        border-top: 1px solid #ddd;
+    }
+    </style>
+    <div class="footer">
+        © 2025 GuardianAI | Developed by <b>GEN Z CODER MU</b>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
 st.write("---")
