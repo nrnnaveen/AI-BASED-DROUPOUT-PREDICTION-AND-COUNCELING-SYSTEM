@@ -103,61 +103,117 @@ else:
 # ---------------- Prediction & Risk ----------------
 if model:
     st.subheader("Predict & Explore")
-    predict_option = st.radio("Prediction source", ("Predict on dataset shown above", "Upload new students to predict"))
-    if predict_option == "Predict on dataset shown above":
-        pred_df = predict_df(model, df)
-    else:
-        new_file = st.file_uploader("Upload new students CSV", type=["csv"], key="predupload")
-        if new_file:
-            new_df = pd.read_csv(new_file)
-            pred_df = predict_df(model, new_df)
-        else:
-            pred_df = predict_df(model, df)
+    predict_option = st.radio(
+        "Prediction source", 
+        ("Predict on dataset shown above", "Upload new students to predict")
+    )
 
-    # Risk levels
+    # Load feature columns saved during training
+    feature_columns = load_features()
+
+    # Select input DataFrame based on user choice
+    if predict_option == "Predict on dataset shown above":
+        input_df = df.copy()
+    else:
+        uploaded_file = st.file_uploader(
+            "Upload new students CSV", type=["csv"], key="predict_upload"
+        )
+        if uploaded_file:
+            input_df = pd.read_csv(uploaded_file)
+        else:
+            input_df = df.copy()
+
+    # Predict
+    pred_df = predict_df(model, input_df, feature_columns=feature_columns)
+
+    # Compute risk probability (for RandomForest, use predict_proba)
+    if hasattr(model, "predict_proba"):
+        pred_df["risk_proba"] = pred_df.apply(
+            lambda row: model.predict_proba([row[feature_columns]])[0][1], axis=1
+        )
+    else:
+        # fallback if no predict_proba, use prediction 0/1
+        pred_df["risk_proba"] = pred_df["prediction"]
+
+    # Assign risk level
     def assign_risk_level(p):
         if p < 0.3: return "Low"
         elif p < 0.6: return "Medium"
         else: return "High"
+
     pred_df["risk_level"] = pred_df["risk_proba"].apply(assign_risk_level)
 
+    # Styling for risk level
     def color_risk(val):
-        colors = {"High":"#ff4d4d","Medium":"#ffc107","Low":"#28a745"}
+        colors = {"High": "#ff4d4d", "Medium": "#ffc107", "Low": "#28a745"}
         return f"background-color: {colors.get(val,'white')}; color:white; font-weight:bold;"
 
     # Metrics cards
-    c1,c2,c3 = st.columns(3)
-    c1.metric("High-Risk Students", len(pred_df[pred_df["risk_level"]=="High"]))
-    c2.metric("Average Risk Probability", round(pred_df["risk_proba"].mean(),2))
-    c3.metric("Low-Risk Students", len(pred_df[pred_df["risk_level"]=="Low"]))
+    c1, c2, c3 = st.columns(3)
+    c1.metric("High-Risk Students", len(pred_df[pred_df["risk_level"] == "High"]))
+    c2.metric("Average Risk Probability", round(pred_df["risk_proba"].mean(), 2))
+    c3.metric("Low-Risk Students", len(pred_df[pred_df["risk_level"] == "Low"]))
 
-    # Top 10 table
+    # Top 10 predictions
     st.write("### Predictions (Top 10)")
-    styled = pred_df.sort_values("risk_proba", ascending=False).head(10).style.applymap(color_risk, subset=["risk_level"])
+    styled = pred_df.sort_values("risk_proba", ascending=False).head(10).style.applymap(
+        color_risk, subset=["risk_level"]
+    )
     st.dataframe(styled, use_container_width=True)
 
-    # Histogram & Pie
-    fig = px.histogram(pred_df, x="risk_proba", nbins=30, color="risk_level",
-                       color_discrete_map={"Low":"green","Medium":"orange","High":"red"},
-                       title="Predicted risk probability")
+    # Histogram
+    fig = px.histogram(
+        pred_df,
+        x="risk_proba",
+        nbins=30,
+        color="risk_level",
+        color_discrete_map={"Low": "green", "Medium": "orange", "High": "red"},
+        title="Predicted Risk Probability"
+    )
     st.plotly_chart(fig, use_container_width=True)
 
-    pie_fig = px.pie(pred_df, names="risk_level", color="risk_level",
-                     color_discrete_map={"Low":"green","Medium":"orange","High":"red"},
-                     title="Risk Level Distribution")
+    # Pie chart
+    pie_fig = px.pie(
+        pred_df,
+        names="risk_level",
+        color="risk_level",
+        color_discrete_map={"Low": "green", "Medium": "orange", "High": "red"},
+        title="Risk Level Distribution"
+    )
     st.plotly_chart(pie_fig, use_container_width=True)
 
-    # High-risk table
-    if "threshold" not in st.session_state: st.session_state.threshold=0.5
-    threshold = st.slider("Risk threshold",0.0,1.0,st.session_state.threshold)
-    st.session_state.threshold=threshold
-    high_risk = pred_df[pred_df["risk_proba"]>=threshold].sort_values("risk_proba",ascending=False)
-    st.write(f"High-risk students (risk_proba>={threshold}): {len(high_risk)}")
-    st.dataframe(high_risk[["student_id","attendance_pct","avg_test_pct","engagement_score","risk_proba","risk_level"]]
-                 .head(50).style.applymap(color_risk, subset=["risk_level"]))
+    # High-risk students based on threshold
+    if "threshold" not in st.session_state:
+        st.session_state.threshold = 0.5
 
-    st.download_button("📥 Download High-risk CSV", high_risk.to_csv(index=False), file_name="high_risk_students.csv", mime="text/csv")
-    st.download_button("📥 Download All Predictions", pred_df.to_csv(index=False), file_name="all_predictions.csv", mime="text/csv")
+    threshold = st.slider("Risk threshold", 0.0, 1.0, st.session_state.threshold)
+    st.session_state.threshold = threshold
+
+    high_risk = pred_df[pred_df["risk_proba"] >= threshold].sort_values(
+        "risk_proba", ascending=False
+    )
+
+    st.write(f"High-risk students (risk_proba >= {threshold}): {len(high_risk)}")
+    st.dataframe(
+        high_risk[
+            ["student_id", "attendance_pct", "avg_test_pct", "engagement_score", "risk_proba", "risk_level"]
+        ].head(50).style.applymap(color_risk, subset=["risk_level"])
+    )
+
+    # Download buttons
+    st.download_button(
+        "📥 Download High-risk CSV",
+        high_risk.to_csv(index=False),
+        file_name="high_risk_students.csv",
+        mime="text/csv"
+    )
+    st.download_button(
+        "📥 Download All Predictions",
+        pred_df.to_csv(index=False),
+        file_name="all_predictions.csv",
+        mime="text/csv"
+    )
+
 
     # ---------------- Counseling Email Section ----------------
     st.write("## Counseling / Outreach (Prototype)")
