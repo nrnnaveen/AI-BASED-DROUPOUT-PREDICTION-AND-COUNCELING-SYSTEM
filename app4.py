@@ -2,55 +2,55 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from model import train_and_evaluate, save_model, load_model, predict_df
+from generate_sample_data import generate
 import plotly.express as px
 import os
 from dotenv import load_dotenv
 import smtplib
 from email.message import EmailMessage
 
-from model3 import train_and_evaluate, save_model, load_model, predict_df
-from generate_sample_datas import generate
-
 load_dotenv()
+st.set_page_config(page_title="𝙂𝙪𝙖𝙧𝙙𝙞𝙖𝙣𝘼𝙄", layout="wide")
 
-# Streamlit UI Config
-st.set_page_config(page_title="GuardianAI – Dropout Risk Dashboard", layout="wide")
+# ---------------- Styled Title & Subheader ----------------
+st.markdown("""
+<h1 style='text-align: center; color: #2E86C1; font-size: 48px;'>
+𝙂𝙪𝙖𝙧𝙙𝙞𝙖𝙣𝘼𝙄 – ᴡᴀᴛᴄʜ. ᴅᴇᴛᴇᴄᴛ. ᴘʀᴏᴛᴇᴄᴛ
+</h1>
+<p style='text-align: center; color: #555; font-size: 20px;'>Zero Dropouts, Infinite Potential</p>
+""", unsafe_allow_html=True)
 
-st.title("𝙂𝙪𝙖𝙧𝙙𝙞𝙖𝙣𝘼𝙄 – ᴡᴀᴛᴄʜ. ᴅᴇᴛᴇᴄᴛ. ᴘʀᴏᴛᴇᴄᴛ")
-st.subheader("AI-Based Dropout Prediction & Counseling — Prototype")
+# ---------------- Sidebar ----------------
+st.sidebar.markdown("## 📊 Data / Model Selection")
+data_option = st.sidebar.radio("Choose data", ("Use sample data", "Upload Single CSV", "Upload multiple CSVs (Attendance, Tests, Fees)"))
+model_option = st.sidebar.selectbox("Model action", ("Train new model", "Load existing model (dropout_model.joblib)"))
 
-# -------------------------------
-# Sidebar Options
-# -------------------------------
-st.sidebar.header("📂 Data Input Options")
-
-data_option = st.sidebar.radio(
-    "Choose data source:",
-    ("Use Sample Data", "Upload Single CSV", "Upload multiple CSVs (Attendance, Tests, Fees)")
-)
-
+# ---------------- Data Handling ----------------
 df = None
 
-# --- Option 1: Sample Data
-if data_option == "Use Sample Data":
+# Option 1: Sample Data
+if data_option == "Use sample data":
     df = generate(2000)
-    st.sidebar.success("✅ Generated sample dataset (2000 students)")
+    st.sidebar.success("✅ Generated sample dataset (2000 rows)")
 
-# --- Option 2: Single CSV Upload
+# Option 2: Single CSV
 elif data_option == "Upload Single CSV":
-    uploaded_file = st.sidebar.file_uploader("Upload your dataset (CSV)", type=["csv"])
+    uploaded_file = st.sidebar.file_uploader("Upload students CSV", type=["csv"])
     if uploaded_file:
         try:
             df = pd.read_csv(uploaded_file)
-            st.sidebar.success(f"✅ Uploaded dataset with {len(df)} rows")
+            st.sidebar.success(f"Loaded {len(df)} rows")
         except Exception as e:
-            st.sidebar.error(f"❌ Error reading file: {e}")
+            st.sidebar.error(f"Error reading file: {e}")
             df = generate(2000)
+    else:
+        st.sidebar.info("No file uploaded. Using sample data.")
+        df = generate(2000)
 
-# --- Option 3: Multiple CSVs Upload
+# Option 3: Multiple CSVs
 elif data_option == "Upload multiple CSVs (Attendance, Tests, Fees)":
     st.sidebar.info("Upload 3 CSVs with a common `student_id` column")
-
     att_file = st.sidebar.file_uploader("Upload Attendance CSV", type=["csv"], key="att")
     test_file = st.sidebar.file_uploader("Upload Tests CSV", type=["csv"], key="test")
     fee_file = st.sidebar.file_uploader("Upload Fees CSV", type=["csv"], key="fee")
@@ -63,43 +63,159 @@ elif data_option == "Upload multiple CSVs (Attendance, Tests, Fees)":
 
             df = df_att.merge(df_test, on="student_id", how="outer")
             df = df.merge(df_fee, on="student_id", how="outer")
-
             st.sidebar.success(f"✅ Merged dataset with {len(df)} rows")
         except Exception as e:
-            st.sidebar.error(f"❌ Error merging CSVs: {e}")
+            st.sidebar.error(f"Error merging CSVs: {e}")
             df = generate(2000)
     else:
         st.sidebar.warning("⚠ Please upload all 3 files")
         df = generate(2000)
 
-# -------------------------------
-# Data Preview
-# -------------------------------
-st.subheader("📊 Dataset Preview")
-st.dataframe(df.head())
+# Required columns check & type enforcement
+required_cols = ["student_id","gender","scholarship","attendance_pct","avg_assignment_pct","avg_test_pct","fee_delay_days","num_attempts","prior_arrears","engagement_score","dropout_risk"]
+expected_types = {"student_id": str, "gender": str, "scholarship": int, "attendance_pct": float, "avg_assignment_pct": float, "avg_test_pct": float,
+                  "fee_delay_days": int, "num_attempts": int, "prior_arrears": int, "engagement_score": float}
 
-# -------------------------------
-# Model Training & Prediction
-# -------------------------------
-st.subheader("⚙️ Train Model & Predict Dropout Risk")
+missing = [c for c in required_cols if c not in df.columns]
+if missing:
+    st.warning(f"Missing columns: {missing}. Using sample data may fill all required columns.")
 
-if st.button("Train & Evaluate Model"):
-    model, acc = train_and_evaluate(df)
-    save_model(model)
-    st.success(f"✅ Model trained with accuracy: {acc:.2f}")
+for col, dtype in expected_types.items():
+    if col in df.columns:
+        df[col] = df[col].astype(dtype)
 
-if st.button("Predict Dropout Risk"):
-    model = load_model()
-    if model:
-        df_pred = predict_df(model, df)
-        st.dataframe(df_pred.head())
+st.write("### Sample dataset (up to 1000 rows)")
+st.dataframe(df.head(1000))
 
-        # --- Visualization
-        fig = px.histogram(df_pred, x="dropout_risk", color="dropout_risk",
-                           title="Dropout Risk Distribution")
-        st.plotly_chart(fig, use_container_width=True)
+# ---------------- Model Handling ----------------
+model = None
+metrics = None
+
+if model_option == "Train new model":
+    st.subheader("Train model")
+    if st.button("Train model on selected dataset"):
+        model, metrics = train_and_evaluate(df)
+        save_model(model, "dropout_model.joblib")
+        st.success("✅ Model trained and saved to dropout_model.joblib")
+        st.json(metrics)
+else:
+    model = load_model("dropout_model.joblib")
+    st.success("✅ Loaded model dropout_model.joblib")
+
+# ---------------- Prediction & Risk ----------------
+high_risk = pd.DataFrame()  # initialize
+
+if model is not None:
+    st.subheader("Predict & Explore")
+    predict_option = st.radio("Prediction source", ("Predict on dataset shown above", "Upload new students to predict"))
+
+    if predict_option == "Predict on dataset shown above":
+        pred_df = predict_df(model, df)
     else:
-        st.error("❌ No trained model found. Please train the model first.")
+        new_file = st.file_uploader("Upload new students CSV", type=["csv"], key="predupload")
+        if new_file:
+            new_df = pd.read_csv(new_file)
+            pred_df = predict_df(model, new_df)
+        else:
+            st.info("Upload new CSV; predictions will run on current dataset.")
+            pred_df = predict_df(model, df)
+
+    # Risk level
+    def assign_risk_level(p):
+        if p < 0.3: return "Low"
+        elif p < 0.6: return "Medium"
+        else: return "High"
+    pred_df["risk_level"] = pred_df["risk_proba"].apply(assign_risk_level)
+
+    # Color function
+    def color_risk(val):
+        colors = {"High":"#ff4d4d","Medium":"#ffc107","Low":"#28a745"}
+        return f"background-color: {colors.get(val,'white')}; color:white; font-weight:bold;"
+
+    # Metrics cards
+    c1,c2,c3 = st.columns(3)
+    c1.metric("High-Risk Students", len(pred_df[pred_df["risk_level"]=="High"]))
+    c2.metric("Average Risk Probability", round(pred_df["risk_proba"].mean(),2))
+    c3.metric("Low-Risk Students", len(pred_df[pred_df["risk_level"]=="Low"]))
+
+    # Top 10 table
+    st.write("### Predictions (Top 10)")
+    styled = pred_df.sort_values("risk_proba", ascending=False).head(10).style.applymap(color_risk, subset=["risk_level"])
+    st.dataframe(styled, use_container_width=True)
+
+    # Histogram & Pie
+    st.write("### Risk Distribution")
+    fig = px.histogram(pred_df, x="risk_proba", nbins=30, color="risk_level",
+                       color_discrete_map={"Low":"green","Medium":"orange","High":"red"},
+                       title="Predicted risk probability")
+    st.plotly_chart(fig, use_container_width=True)
+
+    pie_fig = px.pie(pred_df, names="risk_level", color="risk_level",
+                     color_discrete_map={"Low":"green","Medium":"orange","High":"red"},
+                     title="Risk Level Distribution")
+    st.plotly_chart(pie_fig, use_container_width=True)
+
+    # High-risk table with threshold
+    if "threshold" not in st.session_state: st.session_state.threshold=0.5
+    threshold = st.slider("Risk threshold",0.0,1.0,st.session_state.threshold)
+    st.session_state.threshold=threshold
+    high_risk = pred_df[pred_df["risk_proba"]>=threshold].sort_values("risk_proba",ascending=False)
+    st.write(f"High-risk students (risk_proba>={threshold}): {len(high_risk)}")
+    st.dataframe(high_risk[["student_id","attendance_pct","avg_test_pct","engagement_score","risk_proba","risk_level"]].head(50).style.applymap(color_risk, subset=["risk_level"]))
+
+    # Download buttons
+    st.download_button("📥 Download High-risk CSV", high_risk.to_csv(index=False), file_name="high_risk_students.csv", mime="text/csv")
+    st.download_button("📥 Download All Predictions", pred_df.to_csv(index=False), file_name="all_predictions.csv", mime="text/csv")
+
+    # ---------------- Counseling Email Section ----------------
+    st.write("## Counseling / Outreach (Prototype)")
+    with st.expander("Compose Email"):
+        enable_email = st.checkbox("Enable Email Sending", False)
+        use_real_emails = st.checkbox("Use real emails (needs 'email' column)", False)
+        subject = st.text_input("Subject","Counseling: Support available")
+        body_template = st.text_area("Body template","Dear Student {student_id},\nAttendance: {attendance_pct}%, Test Avg: {avg_test_pct}%\nRegards")
+
+        def send_email(to_email, subject, body):
+            try:
+                host=os.getenv("EMAIL_HOST")
+                port=int(os.getenv("EMAIL_PORT",587))
+                user=os.getenv("EMAIL_USER")
+                password=os.getenv("EMAIL_PASSWORD")
+                from_addr=os.getenv("FROM_ADDRESS",user)
+                if not all([host,port,user,password]):
+                    st.error("SMTP credentials missing!")
+                    return False
+                msg=EmailMessage()
+                msg["Subject"]=subject
+                msg["From"]=from_addr
+                msg["To"]=to_email
+                msg.set_content(body)
+                with smtplib.SMTP(host,port) as s:
+                    s.starttls()
+                    s.login(user,password)
+                    s.send_message(msg)
+                return True
+            except Exception as e:
+                st.error(f"Failed sending email: {e}")
+                return False
+
+        if enable_email and st.button("Send Emails"):
+            if high_risk.empty:
+                st.info("No high-risk students.")
+            else:
+                sent,failed=0,[]
+                for _,row in high_risk.iterrows():
+                    student_id=row.get("student_id","Unknown")
+                    to_email = row["email"] if use_real_emails and "email" in row else "ffnrnindian@gmail.com"
+                    body = body_template.format(
+                        student_id=student_id,
+                        attendance_pct=row.get("attendance_pct","N/A"),
+                        avg_test_pct=row.get("avg_test_pct","N/A")
+                    )
+                    if send_email(to_email,subject,body): sent+=1
+                    else: failed.append(to_email)
+                st.success(f"Sent {sent} emails. Failures: {len(failed)}")
+                if failed: st.write("Failed:", failed[:10])
 
 # ---------------- Footer ----------------
 st.markdown(
