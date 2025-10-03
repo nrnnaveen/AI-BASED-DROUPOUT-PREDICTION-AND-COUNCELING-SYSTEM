@@ -57,36 +57,38 @@ def load_model(path: str = MODEL_PATH):
 # ----------------------------
 # Predict on Dataset
 # ----------------------------
-def predict_df(model, df: pd.DataFrame):
-    X = df.copy()
-    
-    # Keep student_id if available
-    student_ids = X["student_id"] if "student_id" in X.columns else None
+def predict_df(model, df):
+    """
+    Predict using a trained model, safely handling missing or extra columns in the input DataFrame.
 
-    # Drop label if exists
-    X = X.drop(columns=["dropout_risk"], errors="ignore")
+    Args:
+        model: Trained scikit-learn model.
+        df: pandas DataFrame with input data.
 
-    # Safe categorical handling
-    cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
-    if cat_cols:
-        X = pd.get_dummies(X, columns=cat_cols, drop_first=True)
+    Returns:
+        DataFrame with an additional 'prediction' column.
+    """
+    import pandas as pd
+    import numpy as np
 
-    # Align features with model
-    if hasattr(model, "feature_names_in_"):
-        missing_cols = set(model.feature_names_in_) - set(X.columns)
-        for c in missing_cols:
-            X[c] = 0
-        X = X[model.feature_names_in_]
+    # Get expected features from the model
+    try:
+        expected_features = model.feature_names_in_
+    except AttributeError:
+        raise ValueError("The model does not have 'feature_names_in_'. Make sure it is a scikit-learn model.")
 
-    preds = model.predict(X)
-    probs = model.predict_proba(X)[:, 1]
+    # Add any missing columns with default value 0
+    for col in expected_features:
+        if col not in df.columns:
+            df[col] = 0
 
-    result = df.copy()
-    result["predicted_dropout"] = preds
-    result["risk_proba"] = probs
+    # Select only the expected features (ignore extra columns)
+    df_aligned = df[expected_features]
 
-    if student_ids is not None:
-        result["student_id"] = student_ids
+    # Make predictions
+    predictions = model.predict(df_aligned)
 
-    return result
+    # Add predictions to the original DataFrame
+    df['prediction'] = predictions
 
+    return df
