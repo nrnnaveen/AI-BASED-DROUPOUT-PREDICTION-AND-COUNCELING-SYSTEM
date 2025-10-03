@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from model3 import train_and_evaluate, save_model, load_model, predict_df, load_features
+from model3 import train_and_evaluate, save_model, load_model, predict_df
 from generate_sample_datas import generate
 import plotly.express as px
 import os
@@ -68,15 +68,11 @@ for col in required_cols:
     if col not in df.columns:
         df[col] = 0 if col not in ["student_id","gender"] else "Unknown"
 
-# Fix scholarship to numeric 0/1 if text
-if "scholarship" in df.columns:
-    df["scholarship"] = df["scholarship"].map({"Yes": 1, "No": 0}).fillna(0).astype(int)
-
 # Enforce types
 expected_types = {"student_id": str, "gender": str, "scholarship": int, "attendance_pct": float, 
                   "avg_assignment_pct": float, "avg_test_pct": float, "fee_delay_days": int,
                   "num_attempts": int, "prior_arrears": int, "engagement_score": float,
-                  "dropout_risk": str}   # keep dropout_risk as str for multi-class
+                  "dropout_risk": int}
 for col, dtype in expected_types.items():
     df[col] = df[col].astype(dtype)
 
@@ -130,11 +126,13 @@ if model:
     # Predict
     pred_df = predict_df(model, input_df, feature_columns=feature_columns)
 
-    # Compute risk probability (multi-class safe)
+    # Compute risk probability (for RandomForest, use predict_proba)
     if hasattr(model, "predict_proba"):
-        proba = model.predict_proba(pred_df[feature_columns])
-        pred_df["risk_proba"] = proba.max(axis=1)   # take highest probability across classes
+        pred_df["risk_proba"] = pred_df.apply(
+            lambda row: model.predict_proba([row[feature_columns]])[0][1], axis=1
+        )
     else:
+        # fallback if no predict_proba, use prediction 0/1
         pred_df["risk_proba"] = pred_df["prediction"]
 
     # Assign risk level
@@ -216,6 +214,7 @@ if model:
         mime="text/csv"
     )
 
+
     # ---------------- Counseling Email Section ----------------
     st.write("## Counseling / Outreach (Prototype)")
     with st.expander("Compose Email"):
@@ -248,29 +247,26 @@ if model:
                 st.error(f"Failed sending email: {e}")
                 return False
 
-        if enable_email:
-            if not all([os.getenv("EMAIL_HOST"), os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASSWORD")]):
-                st.warning("⚠️ Email not configured in .env. Emails won’t be sent.")
-            elif st.button("Send Emails"):
-                if 'high_risk' not in locals() or high_risk.empty:
-                    st.info("No high-risk students to send emails.")
-                else:
-                    sent, failed = 0, []
-                    for _, row in high_risk.iterrows():
-                        student_id = row.get("student_id", "Unknown")
-                        to_email = row["email"] if use_real_emails and "email" in row else "ffnrnindian@gmail.com"
-                        body = body_template.format(
-                            student_id=student_id,
-                            attendance_pct=row.get("attendance_pct", "N/A"),
-                            avg_test_pct=row.get("avg_test_pct", "N/A")
-                        )
-                        if send_email(to_email, subject, body):
-                            sent += 1
-                        else:
-                            failed.append(to_email)
-                    st.success(f"Sent {sent} emails. Failures: {len(failed)}")
-                    if failed:
-                        st.write("Failed to send to:", failed[:10])
+        if enable_email and st.button("Send Emails"):
+            if 'high_risk' not in locals() or high_risk.empty:
+                st.info("No high-risk students to send emails.")
+            else:
+                sent, failed = 0, []
+                for _, row in high_risk.iterrows():
+                    student_id = row.get("student_id", "Unknown")
+                    to_email = row["email"] if use_real_emails and "email" in row else "ffnrnindian@gmail.com"
+                    body = body_template.format(
+                        student_id=student_id,
+                        attendance_pct=row.get("attendance_pct", "N/A"),
+                        avg_test_pct=row.get("avg_test_pct", "N/A")
+                    )
+                    if send_email(to_email, subject, body):
+                        sent += 1
+                    else:
+                        failed.append(to_email)
+                st.success(f"Sent {sent} emails. Failures: {len(failed)}")
+                if failed:
+                    st.write("Failed to send to:", failed[:10])
 
 # ---------------- Footer ----------------
 st.markdown("""
