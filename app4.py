@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 import smtplib
 from email.message import EmailMessage
 
-from model import train_and_evaluate, save_model, load_model, predict_df
-from generate_sample_data import generate
+from model3 import train_and_evaluate, save_model, load_model, predict_df
+from generate_sample_datas import generate
 
 load_dotenv()
 
@@ -101,8 +101,28 @@ if st.button("Predict Dropout Risk"):
     else:
         st.error("❌ No trained model found. Please train the model first.")
 
-# -------------------------------
-# Footer (OLD)
-# -------------------------------
-st.markdown("---")
-st.markdown("© 2025 GuardianAI | All Rights Reserved")
+# ---------------- Footer ----------------
+st.markdown(
+    """
+    <style>
+    .footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: #f5f5f5;
+        color: #555;
+        text-align: center;
+        padding: 10px;
+        font-size: 14px;
+        border-top: 1px solid #ddd;
+    }
+    </style>
+    <div class="footer">
+      © 2025 GuardianAI | Developed by <b>GEN Z CODERS</b> | 💌 Contact: ffnrnindian@gmail.com
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+st.write("---")
