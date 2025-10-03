@@ -1,4 +1,4 @@
-# mode3.py
+# model3.py
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -7,6 +7,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import joblib
 
 MODEL_PATH = "dropout_model.joblib"
+FEATURES_PATH = "model_features.joblib"  # Save feature list separately
 
 # ----------------------------
 # Train & Evaluate
@@ -23,6 +24,10 @@ def train_and_evaluate(df: pd.DataFrame):
     cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
     if cat_cols:
         X = pd.get_dummies(X, columns=cat_cols, drop_first=True)
+
+    # Save feature names
+    feature_columns = X.columns.tolist()
+    joblib.dump(feature_columns, FEATURES_PATH)
 
     # Train/test split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -54,41 +59,43 @@ def load_model(path: str = MODEL_PATH):
     except:
         return None
 
+def load_features(path: str = FEATURES_PATH):
+    try:
+        return joblib.load(path)
+    except:
+        return None
+
 # ----------------------------
 # Predict on Dataset
 # ----------------------------
-def predict_df(model, df):
+def predict_df(model, df, feature_columns=None):
     """
     Predict using a trained model, safely handling missing or extra columns in the input DataFrame.
 
     Args:
-        model: Trained scikit-learn model.
-        df: pandas DataFrame with input data.
+        model: Trained scikit-learn model
+        df: pandas DataFrame with input data
+        feature_columns: list of features used during training (optional)
 
     Returns:
-        DataFrame with an additional 'prediction' column.
+        DataFrame with an additional 'prediction' column
     """
-    import pandas as pd
-    import numpy as np
+    if feature_columns is None:
+        # Try to load saved feature list
+        feature_columns = load_features()
+        if feature_columns is None:
+            raise ValueError("Feature columns not provided and could not be loaded from disk.")
 
-    # Get expected features from the model
-    try:
-        expected_features = model.feature_names_in_
-    except AttributeError:
-        raise ValueError("The model does not have 'feature_names_in_'. Make sure it is a scikit-learn model.")
-
-    # Add any missing columns with default value 0
-    for col in expected_features:
+    # Add missing columns with default value 0
+    for col in feature_columns:
         if col not in df.columns:
             df[col] = 0
 
-    # Select only the expected features (ignore extra columns)
-    df_aligned = df[expected_features]
+    # Select only the features used in training
+    df_aligned = df[feature_columns]
 
     # Make predictions
-    predictions = model.predict(df_aligned)
-
-    # Add predictions to the original DataFrame
-    df['prediction'] = predictions
+    df['prediction'] = model.predict(df_aligned)
 
     return df
+
