@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from model3 import train_and_evaluate, save_model, load_model, predict_df
+from model3 import train_and_evaluate, save_model, load_model, predict_df, load_features
 from generate_sample_datas import generate
 import plotly.express as px
 import os
@@ -68,11 +68,15 @@ for col in required_cols:
     if col not in df.columns:
         df[col] = 0 if col not in ["student_id","gender"] else "Unknown"
 
+# Fix scholarship to numeric 0/1 if text
+if "scholarship" in df.columns:
+    df["scholarship"] = df["scholarship"].map({"Yes": 1, "No": 0}).fillna(0).astype(int)
+
 # Enforce types
 expected_types = {"student_id": str, "gender": str, "scholarship": int, "attendance_pct": float, 
                   "avg_assignment_pct": float, "avg_test_pct": float, "fee_delay_days": int,
                   "num_attempts": int, "prior_arrears": int, "engagement_score": float,
-                  "dropout_risk": int}
+                  "dropout_risk": str}   # keep dropout_risk as str for multi-class
 for col, dtype in expected_types.items():
     df[col] = df[col].astype(dtype)
 
@@ -101,26 +105,14 @@ else:
         st.warning("No model found. Train a new model first.")
 
 # ---------------- Prediction & Risk ----------------
-# ---------------- Prediction & Risk ----------------
 if model:
     st.subheader("Predict & Explore")
-
-    # Radio to choose dataset
     predict_option = st.radio(
-        "Prediction source",
+        "Prediction source", 
         ("Predict on dataset shown above", "Upload new students to predict")
     )
 
-    # Load feature columns safely
-    def load_features(path="feature_columns.npy"):
-        import numpy as np
-        try:
-            return list(np.load(path, allow_pickle=True))
-        except:
-            st.warning("Feature columns file not found. Using default features.")
-            return ["attendance_pct","avg_assignment_pct","avg_test_pct",
-                    "fee_delay_days","num_attempts","prior_arrears","engagement_score"]
-
+    # Load feature columns saved during training
     feature_columns = load_features()
 
     # Select input DataFrame based on user choice
@@ -133,110 +125,96 @@ if model:
         if uploaded_file:
             input_df = pd.read_csv(uploaded_file)
         else:
-            st.warning("No file uploaded. Using dataset shown above.")
             input_df = df.copy()
 
-    # Ensure all required feature columns exist
-    for col in feature_columns:
-        if col not in input_df.columns:
-            input_df[col] = 0  # default value if missing
+    # Predict
+    pred_df = predict_df(model, input_df, feature_columns=feature_columns)
 
-    # Run prediction safely
-    try:
-        pred_df = predict_df(model, input_df, feature_columns=feature_columns)
-    except Exception as e:
-        st.error(f"Prediction failed: {e}")
-        pred_df = pd.DataFrame()  # fallback empty DataFrame
-
-    if not pred_df.empty:
-        # Compute risk probability
-        if hasattr(model, "predict_proba"):
-            pred_df["risk_proba"] = pred_df.apply(
-                lambda row: model.predict_proba([row[feature_columns]])[0][1], axis=1
-            )
-        else:
-            pred_df["risk_proba"] = pred_df["prediction"]
-
-        # Assign risk levels
-        def assign_risk_level(p):
-            if p < 0.3: return "Low"
-            elif p < 0.6: return "Medium"
-            else: return "High"
-
-        pred_df["risk_level"] = pred_df["risk_proba"].apply(assign_risk_level)
-
-        # Styling for risk level
-        def color_risk(val):
-            colors = {"High": "#ff4d4d", "Medium": "#ffc107", "Low": "#28a745"}
-            return f"background-color: {colors.get(val,'white')}; color:white; font-weight:bold;"
-
-        # Metrics cards
-        c1, c2, c3 = st.columns(3)
-        c1.metric("High-Risk Students", len(pred_df[pred_df["risk_level"] == "High"]))
-        c2.metric("Average Risk Probability", round(pred_df["risk_proba"].mean(), 2))
-        c3.metric("Low-Risk Students", len(pred_df[pred_df["risk_level"] == "Low"]))
-
-        # Top 10 predictions
-        st.write("### Predictions (Top 10)")
-        styled = pred_df.sort_values("risk_proba", ascending=False).head(10).style.applymap(
-            color_risk, subset=["risk_level"]
-        )
-        st.dataframe(styled, use_container_width=True)
-
-        # Histogram
-        fig = px.histogram(
-            pred_df,
-            x="risk_proba",
-            nbins=30,
-            color="risk_level",
-            color_discrete_map={"Low": "green", "Medium": "orange", "High": "red"},
-            title="Predicted Risk Probability"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Pie chart
-        pie_fig = px.pie(
-            pred_df,
-            names="risk_level",
-            color="risk_level",
-            color_discrete_map={"Low": "green", "Medium": "orange", "High": "red"},
-            title="Risk Level Distribution"
-        )
-        st.plotly_chart(pie_fig, use_container_width=True)
-
-        # High-risk students based on slider threshold
-        if "threshold" not in st.session_state:
-            st.session_state.threshold = 0.5
-        threshold = st.slider("Risk threshold", 0.0, 1.0, st.session_state.threshold)
-        st.session_state.threshold = threshold
-
-        high_risk = pred_df[pred_df["risk_proba"] >= threshold].sort_values(
-            "risk_proba", ascending=False
-        )
-        st.write(f"High-risk students (risk_proba >= {threshold}): {len(high_risk)}")
-        st.dataframe(
-            high_risk[
-                ["student_id","attendance_pct","avg_test_pct","engagement_score","risk_proba","risk_level"]
-            ].head(50).style.applymap(color_risk, subset=["risk_level"])
-        )
-
-        # Download buttons
-        st.download_button(
-            "📥 Download High-risk CSV",
-            high_risk.to_csv(index=False),
-            file_name="high_risk_students.csv",
-            mime="text/csv"
-        )
-        st.download_button(
-            "📥 Download All Predictions",
-            pred_df.to_csv(index=False),
-            file_name="all_predictions.csv",
-            mime="text/csv"
-        )
-
+    # Compute risk probability (multi-class safe)
+    if hasattr(model, "predict_proba"):
+        proba = model.predict_proba(pred_df[feature_columns])
+        pred_df["risk_proba"] = proba.max(axis=1)   # take highest probability across classes
     else:
-        st.warning("No valid predictions could be made. Check your CSV input.")
+        pred_df["risk_proba"] = pred_df["prediction"]
 
+    # Assign risk level
+    def assign_risk_level(p):
+        if p < 0.3: return "Low"
+        elif p < 0.6: return "Medium"
+        else: return "High"
+
+    pred_df["risk_level"] = pred_df["risk_proba"].apply(assign_risk_level)
+
+    # Styling for risk level
+    def color_risk(val):
+        colors = {"High": "#ff4d4d", "Medium": "#ffc107", "Low": "#28a745"}
+        return f"background-color: {colors.get(val,'white')}; color:white; font-weight:bold;"
+
+    # Metrics cards
+    c1, c2, c3 = st.columns(3)
+    c1.metric("High-Risk Students", len(pred_df[pred_df["risk_level"] == "High"]))
+    c2.metric("Average Risk Probability", round(pred_df["risk_proba"].mean(), 2))
+    c3.metric("Low-Risk Students", len(pred_df[pred_df["risk_level"] == "Low"]))
+
+    # Top 10 predictions
+    st.write("### Predictions (Top 10)")
+    styled = pred_df.sort_values("risk_proba", ascending=False).head(10).style.applymap(
+        color_risk, subset=["risk_level"]
+    )
+    st.dataframe(styled, use_container_width=True)
+
+    # Histogram
+    fig = px.histogram(
+        pred_df,
+        x="risk_proba",
+        nbins=30,
+        color="risk_level",
+        color_discrete_map={"Low": "green", "Medium": "orange", "High": "red"},
+        title="Predicted Risk Probability"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Pie chart
+    pie_fig = px.pie(
+        pred_df,
+        names="risk_level",
+        color="risk_level",
+        color_discrete_map={"Low": "green", "Medium": "orange", "High": "red"},
+        title="Risk Level Distribution"
+    )
+    st.plotly_chart(pie_fig, use_container_width=True)
+
+    # High-risk students based on threshold
+    if "threshold" not in st.session_state:
+        st.session_state.threshold = 0.5
+
+    threshold = st.slider("Risk threshold", 0.0, 1.0, st.session_state.threshold)
+    st.session_state.threshold = threshold
+
+    high_risk = pred_df[pred_df["risk_proba"] >= threshold].sort_values(
+        "risk_proba", ascending=False
+    )
+
+    st.write(f"High-risk students (risk_proba >= {threshold}): {len(high_risk)}")
+    st.dataframe(
+        high_risk[
+            ["student_id", "attendance_pct", "avg_test_pct", "engagement_score", "risk_proba", "risk_level"]
+        ].head(50).style.applymap(color_risk, subset=["risk_level"])
+    )
+
+    # Download buttons
+    st.download_button(
+        "📥 Download High-risk CSV",
+        high_risk.to_csv(index=False),
+        file_name="high_risk_students.csv",
+        mime="text/csv"
+    )
+    st.download_button(
+        "📥 Download All Predictions",
+        pred_df.to_csv(index=False),
+        file_name="all_predictions.csv",
+        mime="text/csv"
+    )
 
     # ---------------- Counseling Email Section ----------------
     st.write("## Counseling / Outreach (Prototype)")
@@ -270,26 +248,29 @@ if model:
                 st.error(f"Failed sending email: {e}")
                 return False
 
-        if enable_email and st.button("Send Emails"):
-            if 'high_risk' not in locals() or high_risk.empty:
-                st.info("No high-risk students to send emails.")
-            else:
-                sent, failed = 0, []
-                for _, row in high_risk.iterrows():
-                    student_id = row.get("student_id", "Unknown")
-                    to_email = row["email"] if use_real_emails and "email" in row else "ffnrnindian@gmail.com"
-                    body = body_template.format(
-                        student_id=student_id,
-                        attendance_pct=row.get("attendance_pct", "N/A"),
-                        avg_test_pct=row.get("avg_test_pct", "N/A")
-                    )
-                    if send_email(to_email, subject, body):
-                        sent += 1
-                    else:
-                        failed.append(to_email)
-                st.success(f"Sent {sent} emails. Failures: {len(failed)}")
-                if failed:
-                    st.write("Failed to send to:", failed[:10])
+        if enable_email:
+            if not all([os.getenv("EMAIL_HOST"), os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASSWORD")]):
+                st.warning("⚠️ Email not configured in .env. Emails won’t be sent.")
+            elif st.button("Send Emails"):
+                if 'high_risk' not in locals() or high_risk.empty:
+                    st.info("No high-risk students to send emails.")
+                else:
+                    sent, failed = 0, []
+                    for _, row in high_risk.iterrows():
+                        student_id = row.get("student_id", "Unknown")
+                        to_email = row["email"] if use_real_emails and "email" in row else "ffnrnindian@gmail.com"
+                        body = body_template.format(
+                            student_id=student_id,
+                            attendance_pct=row.get("attendance_pct", "N/A"),
+                            avg_test_pct=row.get("avg_test_pct", "N/A")
+                        )
+                        if send_email(to_email, subject, body):
+                            sent += 1
+                        else:
+                            failed.append(to_email)
+                    st.success(f"Sent {sent} emails. Failures: {len(failed)}")
+                    if failed:
+                        st.write("Failed to send to:", failed[:10])
 
 # ---------------- Footer ----------------
 st.markdown("""
