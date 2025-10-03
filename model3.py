@@ -3,99 +3,102 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, accuracy_score
+from sklearn.preprocessing import LabelEncoder
 import joblib
+import os
 
-MODEL_PATH = "dropout_model.joblib"
-FEATURES_PATH = "model_features.joblib"  # Save feature list separately
+MODEL_FILE = "dropout_model.joblib"
+FEATURE_FILE = "features.joblib"
+ENCODER_FILE = "label_encoder.joblib"
 
-# ----------------------------
-# Train & Evaluate
-# ----------------------------
+# ---------------- Train & Evaluate ----------------
 def train_and_evaluate(df: pd.DataFrame):
-    target_col = "dropout_risk"
-    if target_col not in df.columns:
-        raise ValueError(f"Dataset missing '{target_col}' column for training")
+    target = "dropout_risk"
+    features = [col for col in df.columns if col not in ["student_id", target]]
 
-    X = df.drop(columns=[target_col], errors="ignore")
-    y = df[target_col]
+    # Encode target
+    le = LabelEncoder()
+    df[target] = le.fit_transform(df[target])
 
-    # Convert categorical to numeric safely
-    cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
-    if cat_cols:
-        X = pd.get_dummies(X, columns=cat_cols, drop_first=True)
+    X = df[features]
+    y = df[target]
 
-    # Save feature names
-    feature_columns = X.columns.tolist()
-    joblib.dump(feature_columns, FEATURES_PATH)
-
-    # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
 
     model = RandomForestClassifier(n_estimators=200, random_state=42)
     model.fit(X_train, y_train)
 
-    preds = model.predict(X_test)
-    acc = accuracy_score(y_test, preds)
+    y_pred = model.predict(X_test)
+
+    acc = accuracy_score(y_test, y_pred)
+    report = classification_report(
+        y_test, y_pred, target_names=le.classes_, output_dict=True
+    )
+
+    # Save everything
+    save_model(model, features, le)
 
     metrics = {
-        "accuracy": round(acc, 3),
-        "precision": round(precision_score(y_test, preds, zero_division=0), 3),
-        "recall": round(recall_score(y_test, preds, zero_division=0), 3),
-        "f1_score": round(f1_score(y_test, preds, zero_division=0), 3)
+        "accuracy": acc,
+        "report": report,
+        "classes": list(le.classes_)
     }
-
     return model, metrics
 
-# ----------------------------
-# Save & Load Model
-# ----------------------------
-def save_model(model, path: str = MODEL_PATH):
-    joblib.dump(model, path)
 
-def load_model(path: str = MODEL_PATH):
-    try:
-        return joblib.load(path)
-    except:
-        return None
+# ---------------- Save & Load ----------------
+def save_model(model, features, label_encoder):
+    joblib.dump(model, MODEL_FILE)
+    joblib.dump(features, FEATURE_FILE)
+    joblib.dump(label_encoder, ENCODER_FILE)
 
-def load_features(path: str = FEATURES_PATH):
-    try:
-        return joblib.load(path)
-    except:
-        return None
 
-# ----------------------------
-# Predict on Dataset
-# ----------------------------
-def predict_df(model, df, feature_columns=None):
-    """
-    Predict using a trained model, safely handling missing or extra columns in the input DataFrame.
+def load_model():
+    if os.path.exists(MODEL_FILE):
+        return joblib.load(MODEL_FILE)
+    return None
 
-    Args:
-        model: Trained scikit-learn model
-        df: pandas DataFrame with input data
-        feature_columns: list of features used during training (optional)
 
-    Returns:
-        DataFrame with an additional 'prediction' column
-    """
+def load_features():
+    if os.path.exists(FEATURE_FILE):
+        return joblib.load(FEATURE_FILE)
+    return []
+
+
+def load_encoder():
+    if os.path.exists(ENCODER_FILE):
+        return joblib.load(ENCODER_FILE)
+    return None
+
+
+# ---------------- Prediction ----------------
+def predict_df(model, df: pd.DataFrame, feature_columns=None):
     if feature_columns is None:
-        # Try to load saved feature list
         feature_columns = load_features()
-        if feature_columns is None:
-            raise ValueError("Feature columns not provided and could not be loaded from disk.")
 
-    # Add missing columns with default value 0
+    df = df.copy()
+
+    # Ensure all required features exist (fill missing with 0)
     for col in feature_columns:
         if col not in df.columns:
             df[col] = 0
 
-    # Select only the features used in training
-    df_aligned = df[feature_columns]
+    # Drop any extra columns not used in training
+    X = df[feature_columns]
 
-    # Make predictions
-    df['prediction'] = model.predict(df_aligned)
+    # Predict
+    y_pred = model.predict(X)
+
+    # Decode labels if encoder exists
+    le = load_encoder()
+    if le:
+        df["prediction"] = le.inverse_transform(y_pred)
+    else:
+        df["prediction"] = y_pred
 
     return df
+
 
