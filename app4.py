@@ -218,20 +218,36 @@ if model is not None:
                 if failed: st.write("Failed:", failed[:10])
 
 # ---------------- YouTube Tutorial Section ----------------
-st.write("---")
+import streamlit as st
+
+st.write("---")  # Divider line
+
 st.markdown(
     """
     <div style='text-align:center;'>
         <h3 style='color:#2E86C1;'>🎥 Watch our full tutorial on YouTube</h3>
-        <a href='https://www.youtube.com/watch?v=w5qt-TfBiKo' target='_blank' style='font-size:18px; color:#FF0000; text-decoration:none;'>
-            ▶ Click here to watch
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# 🔗 Clickable YouTube link (opens in new tab)
+st.markdown(
+    """
+    <div style='text-align:center;'>
+        <a href='https://www.youtube.com/watch?v=w5qt-TfBiKo' target='_blank'
+           style='font-size:20px; color:#FF0000; text-decoration:none; font-weight:bold;'>
+           ▶ Click here to watch on YouTube
         </a>
     </div>
     """,
     unsafe_allow_html=True
 )
+
+# ▶ Embedded YouTube player
 st.video("https://www.youtube.com/watch?v=w5qt-TfBiKo")
 
+st.write("---")  # Optional bottom divider
 
 # ---------------- Footer ----------------
 st.markdown("""
