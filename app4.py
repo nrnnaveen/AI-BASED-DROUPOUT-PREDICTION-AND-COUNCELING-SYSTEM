@@ -84,7 +84,7 @@ for col, dtype in expected_types.items():
     if col in df.columns:
         df[col] = df[col].astype(dtype)
 
-st.write("### Sample dataset (up to 1000 rows)")
+st.write("### STUDENTS DATASET (up to 1000 rows)")
 st.dataframe(df.head(1000))
 
 # ---------------- Model Handling ----------------
