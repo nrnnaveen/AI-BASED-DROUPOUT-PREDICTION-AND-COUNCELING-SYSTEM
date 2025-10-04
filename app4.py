@@ -217,6 +217,22 @@ if model is not None:
                 st.success(f"Sent {sent} emails. Failures: {len(failed)}")
                 if failed: st.write("Failed:", failed[:10])
 
+# ---------------- YouTube Tutorial Section ----------------
+st.write("---")
+st.markdown(
+    """
+    <div style='text-align:center;'>
+        <h3 style='color:#2E86C1;'>🎥 Watch our full tutorial on YouTube</h3>
+        <a href='https://www.youtube.com/watch?v=w5qt-TfBiKo' target='_blank' style='font-size:18px; color:#FF0000; text-decoration:none;'>
+            ▶ Click here to watch
+        </a>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+st.video("https://www.youtube.com/watch?v=w5qt-TfBiKo")
+
+
 # ---------------- Footer ----------------
 st.markdown("""
 <style>
