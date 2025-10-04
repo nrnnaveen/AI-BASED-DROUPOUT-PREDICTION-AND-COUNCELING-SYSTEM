@@ -18,7 +18,7 @@ banner_path = "BANNERS.jpg.jpg"  # Replace with your banner image filename
 if os.path.exists(banner_path):
     from PIL import Image
     banner_img = Image.open(banner_path)
-    st.image(banner_img, use_column_width=True)
+    st.image(banner_img, use_container_width=True)
 else:
     st.warning("Banner image not found. Please check the path!")
 
