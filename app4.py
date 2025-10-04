@@ -220,7 +220,7 @@ if model is not None:
 # ---------------- YouTube Tutorial Section ----------------
 import streamlit as st
 
-st.write("---")  # Divider line
+st.write("---")
 
 st.markdown(
     """
@@ -231,23 +231,29 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 🔗 Clickable YouTube link (opens in new tab)
 st.markdown(
     """
-    <div style='text-align:center;'>
+    <div style='text-align:center; margin-bottom:10px;'>
         <a href='https://www.youtube.com/watch?v=w5qt-TfBiKo' target='_blank'
            style='font-size:20px; color:#FF0000; text-decoration:none; font-weight:bold;'>
            ▶ Click here to watch on YouTube
         </a>
     </div>
+
+    <!-- Custom-sized YouTube embed -->
+    <div style='display:flex; justify-content:center;'>
+        <iframe width="640" height="360"
+                src="https://www.youtube.com/embed/w5qt-TfBiKo"
+                frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen>
+        </iframe>
+    </div>
     """,
     unsafe_allow_html=True
 )
 
-# ▶ Embedded YouTube player
-st.video("https://www.youtube.com/watch?v=w5qt-TfBiKo")
-
-st.write("---")  # Optional bottom divider
+st.write("---")
 
 # ---------------- Footer ----------------
 st.markdown("""
