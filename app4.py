@@ -13,6 +13,15 @@ from email.message import EmailMessage
 load_dotenv()
 st.set_page_config(page_title="𝙂𝙪𝙖𝙧𝙙𝙞𝙖𝙣𝘼𝙄", layout="wide")
 
+# ---------------- Banner Section ----------------
+banner_path = "BANNER.jpg"  # Replace with your banner image filename
+if os.path.exists(banner_path):
+    from PIL import Image
+    banner_img = Image.open(banner_path)
+    st.image(banner_img, use_column_width=True)
+else:
+    st.warning("Banner image not found. Please check the path!"))
+
 # ---------------- Styled Title & Subheader ----------------
 st.markdown("""
 <h1 style='text-align: center; color: #2E86C1; font-size: 48px;'>
