@@ -169,55 +169,95 @@ if model is not None:
     st.download_button("📥 Download High-risk CSV", high_risk.to_csv(index=False), file_name="high_risk_students.csv", mime="text/csv")
     st.download_button("📥 Download All Predictions", pred_df.to_csv(index=False), file_name="all_predictions.csv", mime="text/csv")
 
-    # ---------------- Counseling Email Section ----------------
-    st.write("## Counseling / Outreach (Prototype)")
-    with st.expander("Compose Email"):
-        enable_email = st.checkbox("Enable Email Sending", False)
-        use_real_emails = st.checkbox("Use real emails (needs 'email' column)", False)
-        subject = st.text_input("Subject","Counseling: Support available")
-        body_template = st.text_area("Body template","Dear Student {student_id},\nAttendance: {attendance_pct}%, Test Avg: {avg_test_pct}%\nRegards")
+   # ---------------- Counseling / Outreach Email Section (Async + Progress Bar) ----------------
+st.write("## Counseling / Outreach ")
+with st.expander("Compose Email"):
+    enable_email = st.checkbox("Enable Email Sending", False)
+    use_real_emails = st.checkbox("Use real emails (needs 'email' column)", False)
+    subject = st.text_input("Subject", "Counseling: Support available")
+    body_template = st.text_area(
+        "Body template",
+        "Dear Student {student_id},\nAttendance: {attendance_pct}%, Test Avg: {avg_test_pct}%\nRegards"
+    )
 
-        def send_email(to_email, subject, body):
-            try:
-                host=os.getenv("EMAIL_HOST")
-                port=int(os.getenv("EMAIL_PORT",587))
-                user=os.getenv("EMAIL_USER")
-                password=os.getenv("EMAIL_PASSWORD")
-                from_addr=os.getenv("FROM_ADDRESS",user)
-                if not all([host,port,user,password]):
-                    st.error("SMTP credentials missing!")
-                    return False
-                msg=EmailMessage()
-                msg["Subject"]=subject
-                msg["From"]=from_addr
-                msg["To"]=to_email
-                msg.set_content(body)
-                with smtplib.SMTP(host,port) as s:
-                    s.starttls()
-                    s.login(user,password)
-                    s.send_message(msg)
-                return True
-            except Exception as e:
-                st.error(f"Failed sending email: {e}")
-                return False
+    import concurrent.futures
+    import time
 
-        if enable_email and st.button("Send Emails"):
-            if high_risk.empty:
-                st.info("No high-risk students.")
-            else:
-                sent,failed=0,[]
-                for _,row in high_risk.iterrows():
-                    student_id=row.get("student_id","Unknown")
-                    to_email = row["email"] if use_real_emails and "email" in row else "ffnrnindian@gmail.com"
-                    body = body_template.format(
-                        student_id=student_id,
-                        attendance_pct=row.get("attendance_pct","N/A"),
-                        avg_test_pct=row.get("avg_test_pct","N/A")
-                    )
-                    if send_email(to_email,subject,body): sent+=1
-                    else: failed.append(to_email)
-                st.success(f"Sent {sent} emails. Failures: {len(failed)}")
-                if failed: st.write("Failed:", failed[:10])
+    def send_email(to_email, subject, body):
+        """Send a single email and return (to_email, success, error_message)"""
+        try:
+            host = os.getenv("EMAIL_HOST")
+            port = int(os.getenv("EMAIL_PORT", 587))
+            user = os.getenv("EMAIL_USER")
+            password = os.getenv("EMAIL_PASSWORD")
+            from_addr = os.getenv("FROM_ADDRESS", user)
+
+            if not all([host, port, user, password]):
+                return (to_email, False, "SMTP credentials missing")
+
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = from_addr
+            msg["To"] = to_email
+            msg.set_content(body)
+
+            with smtplib.SMTP(host, port) as server:
+                server.starttls()
+                server.login(user, password)
+                server.send_message(msg)
+
+            return (to_email, True, None)
+        except Exception as e:
+            return (to_email, False, str(e))
+
+    if enable_email and st.button("Send Emails"):
+        if high_risk.empty:
+            st.info("No high-risk students to send emails.")
+        else:
+            st.info("Sending emails asynchronously...")
+
+            # Prepare email data
+            email_tasks = []
+            for _, row in high_risk.iterrows():
+                student_id = row.get("student_id", "Unknown")
+                to_email = row["email"] if use_real_emails and "email" in row else "ffnrnindian@gmail.com"
+                body = body_template.format(
+                    student_id=student_id,
+                    attendance_pct=row.get("attendance_pct", "N/A"),
+                    avg_test_pct=row.get("avg_test_pct", "N/A")
+                )
+                email_tasks.append((to_email, subject, body))
+
+            sent_count = 0
+            failed_list = []
+
+            # Initialize progress bar
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            total = len(email_tasks)
+
+            # Send emails in parallel threads
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [executor.submit(send_email, e[0], e[1], e[2]) for e in email_tasks]
+
+                for i, future in enumerate(concurrent.futures.as_completed(futures)):
+                    to_email, success, error = future.result()
+                    if success:
+                        sent_count += 1
+                        print(f"[SUCCESS] Email sent to {to_email}")
+                    else:
+                        failed_list.append((to_email, error))
+                        print(f"[ERROR] Failed to send email to {to_email}: {error}")
+
+                    # Update progress bar
+                    progress = (i + 1) / total
+                    progress_bar.progress(progress)
+                    status_text.text(f"Sent: {sent_count}, Failed: {len(failed_list)}, Remaining: {total - (i+1)}")
+                    time.sleep(0.05)  # small delay for UI update
+
+            st.success(f"✅ Finished sending emails. Sent: {sent_count}, Failures: {len(failed_list)}")
+            if failed_list:
+                st.write("Failed recipients (first 10):", failed_list[:10])
 
 # ---------------- YouTube Tutorial Section ----------------
 import streamlit as st
