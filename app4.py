@@ -14,7 +14,7 @@ load_dotenv()
 st.set_page_config(page_title="𝙂𝙪𝙖𝙧𝙙𝙞𝙖𝙣𝘼𝙄", layout="wide")
 
 # ---------------- Banner Section ----------------
-banner_path = "ai.jpg"   # Replace with your banner image filename
+banner_path = "aii.jpg"   # Replace with your banner image filename
 if os.path.exists(banner_path):
     from PIL import Image
     banner_img = Image.open(banner_path)
