@@ -14,7 +14,7 @@ load_dotenv()
 st.set_page_config(page_title="𝙂𝙪𝙖𝙧𝙙𝙞𝙖𝙣𝘼𝙄", layout="wide")
 
 # ---------------- Banner Section ----------------
-banner_path = "https://static.vecteezy.com/system/resources/previews/004/973/365/non_2x/artificial-intelligence-web-banner-3d-isometric-illustration-of-a-processor-chip-the-process-of-data-processing-developments-in-modern-technologies-microcircuits-on-neon-glowing-background-vector.jpg"  # Replace with your banner image filename
+banner_path = https://static.vecteezy.com/system/resources/previews/004/973/365/non_2x/artificial-intelligence-web-banner-3d-isometric-illustration-of-a-processor-chip-the-process-of-data-processing-developments-in-modern-technologies-microcircuits-on-neon-glowing-background-vector.jpg   # Replace with your banner image filename
 if os.path.exists(banner_path):
     from PIL import Image
     banner_img = Image.open(banner_path)
