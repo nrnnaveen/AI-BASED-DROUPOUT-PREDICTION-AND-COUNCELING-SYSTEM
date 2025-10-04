@@ -97,7 +97,9 @@ if model_option == "Train new model":
         model, metrics = train_and_evaluate(df)
         save_model(model, "dropout_model.joblib")
         st.success("✅ Model trained and saved to dropout_model.joblib")
-        st.json(metrics)
+        with st.expander("📊 View detailed model metrics"):
+            st.json(metrics)
+
 else:
     model = load_model("dropout_model.joblib")
     st.success("✅ Loaded model dropout_model.joblib")
