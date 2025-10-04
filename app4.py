@@ -20,7 +20,7 @@ if os.path.exists(banner_path):
     banner_img = Image.open(banner_path)
     st.image(banner_img, use_column_width=True)
 else:
-    st.warning("Banner image not found. Please check the path!"))
+    st.warning("Banner image not found. Please check the path!")
 
 # ---------------- Styled Title & Subheader ----------------
 st.markdown("""
